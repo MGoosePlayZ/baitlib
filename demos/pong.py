@@ -1,6 +1,7 @@
-# NEON PONG - pong with every effect the draw API can fake without alpha:
-# glow (stacked dim shapes), ball trail, sparks, shockwave rings, screen shake, paddle squash,
-# synthwave backdrop, chromatic score text, scanlines, procedural sound (lib.sound.tone).
+# NEON PONG - pong with every effect the draw API can do: real opacity and gradients. Glow is stacked
+# translucent shapes (no more mixing colors toward the background), a ball trail that fades out, sparks,
+# shockwave rings, screen shake, paddle squash, a synthwave backdrop built from gradients, chromatic
+# score text, translucent scanlines, procedural sound (lib.sound.tone).
 #
 # W/S or Up/Down or mouse: move   Space: start / serve   C: toggle scanlines
 import math
@@ -47,22 +48,26 @@ def hsv(h, s=0.8, v=1.0):
     return [[v, u, p], [q, v, p], [p, v, u], [p, q, v], [u, p, v], [v, p, q]][i]
 
 
-def glow_circle(x, y, r, col, layers=6, spread=0.45):
-    """No alpha, so a glow is bigger shapes in colors mixed toward the background, drawn outside-in."""
-    for k in range(layers, 0, -1):
-        f = k / layers
-        lib.draw.circle(mix(BG, col, 0.2 + (1 - f) ** 2 * 0.75), 0, X(x), Y(y), S(r * (1 + spread * k)))
-    lib.draw.circle(mix(col, [1, 1, 1], 0.6), 0, X(x), Y(y), S(r))
+def A(c, a):
+    """Same color with opacity a (0 to 1)."""
+    return [c[0], c[1], c[2], a]
 
 
-def glow_rect(x, y, w, h, col, layers=5, spread=7, radius=8):
+def glow_circle(x, y, r, col, layers=7, spread=0.5):
+    """Glow = bigger and bigger translucent circles under a bright core. Alpha stacks where they overlap."""
     for k in range(layers, 0, -1):
-        f = k / layers
+        lib.draw.circle(A(col, 0.07 + 0.05 * (layers - k) / layers), 0, X(x), Y(y), S(r * (1 + spread * k)))
+    lib.draw.circle(A(col, 0.9), 0, X(x), Y(y), S(r * 1.15))
+    lib.draw.circle(A(mix(col, [1, 1, 1], 0.7), 1.0), 0, X(x), Y(y), S(r * 0.8))
+
+
+def glow_rect(x, y, w, h, col, layers=6, spread=6, radius=8):
+    for k in range(layers, 0, -1):
         g = spread * k
-        lib.draw.roundedRectangle(mix(BG, col, 0.2 + (1 - f) ** 2 * 0.75), 0, X(x - g), Y(y - g),
+        lib.draw.roundedRectangle(A(col, 0.06 + 0.04 * (layers - k) / layers), 0, X(x - g), Y(y - g),
                                   S(w + g * 2), S(h + g * 2), S(radius + g), S(radius + g))
     lib.draw.roundedRectangle(col, 0, X(x), Y(y), S(w), S(h), S(radius), S(radius))
-    lib.draw.roundedRectangle(mix(col, [1, 1, 1], 0.7), 0, X(x + w * 0.25), Y(y + 6), S(w * 0.5), S(h - 12),
+    lib.draw.roundedRectangle(A([1, 1, 1], 0.75), 0, X(x + w * 0.25), Y(y + 6), S(w * 0.5), S(h - 12),
                               S(radius * 0.5), S(radius * 0.5))
 
 
@@ -282,52 +287,61 @@ def onUpdate(dt):
 # ---------------------------------------------------------------- drawing
 def draw_backdrop():
     lib.draw.rectangle(BG, 0, 0, 0, width, height)
+    horizon = 520
+    # night sky, fixed size so the gradient is cached and costs nothing per frame
+    lib.draw.gradient([0.02, 0.01, 0.10], [0.30, 0.08, 0.38], X(0), Y(0), S(VW), S(horizon), math.pi / 2)
     for s in stars:                                              # parallax starfield
         s[0] = (s[0] - 18 * s[2] * (1 / 60)) % VW
         tw = 0.5 + 0.5 * math.sin(t * 2 + s[1])
-        lib.draw.circle(mix(BG, [1, 1, 1], 0.25 + 0.5 * s[2] * tw), 0, X(s[0]), Y(s[1]), S(1 + 1.6 * s[2]))
-    horizon = 520
-    # striped sun
+        lib.draw.circle([1, 1, 1, (0.2 + 0.6 * s[2] * tw) * (1 - s[1] / horizon * 0.5)], 0, X(s[0]), Y(s[1] % horizon), S(1 + 1.6 * s[2]))
+    # striped sun: translucent bands, each fading from orange to pink, plus a soft halo behind it
+    for k in range(4, 0, -1):
+        lib.draw.circle([1.0, 0.3, 0.5, 0.05], 0, X(VW / 2), Y(horizon - 150), S(150 + k * 38))
     for i in range(12):
         top = horizon - 300 + i * 25
         h = 25 - i * 1.6
         if h > 1:
             w = math.sqrt(max(0, 150 ** 2 - (top + h / 2 - (horizon - 150)) ** 2))
-            lib.draw.rectangle(mix(BG, [1.0, 0.3 + i * 0.04, 0.5], 0.28), 0, X(VW / 2 - w), Y(top), S(w * 2), S(h))
-    # perspective grid, scrolling toward the viewer
-    gcol = mix(BG, [0.7, 0.2, 1.0], 0.35)
-    lib.draw.rectangle(mix(BG, [0.2, 0.05, 0.4], 0.35), 0, X(0), Y(horizon), S(VW), S(VH - horizon))
+            lib.draw.rectangle([1.0, 0.3 + i * 0.04, 0.5, 0.75], 0, X(VW / 2 - w), Y(top), S(w * 2), S(h))
+    # horizon glow and the floor
+    lib.draw.gradient([1.0, 0.3, 0.7, 0.0], [1.0, 0.3, 0.7, 0.45], X(0), Y(horizon - 90), S(VW), S(90), math.pi / 2)
+    lib.draw.gradient([0.35, 0.08, 0.55], [0.03, 0.01, 0.10], X(0), Y(horizon), S(VW), S(VH - horizon), math.pi / 2)
+    # perspective grid, scrolling toward the viewer, fading with distance
     for i in range(-14, 15):
         x0 = VW / 2 + i * 22
         x1 = VW / 2 + i * 150
-        lib.draw.line(gcol, 1, X(x0), Y(horizon), X(x1), Y(VH))
+        lib.draw.line([0.8, 0.35, 1.0, 0.55], 1, X(x0), Y(horizon), X(x1), Y(VH))
     for i in range(10):
         f = ((i + t * 0.6) % 10) / 10
         y = horizon + (VH - horizon) * f ** 2
-        lib.draw.line(gcol, 1, X(0), Y(y), X(VW), Y(y))
+        lib.draw.line([0.8, 0.35, 1.0, 0.15 + 0.5 * f], 1, X(0), Y(y), X(VW), Y(y))
     # arena frame
-    lib.draw.rectangle(mix(BG, [0.5, 0.5, 1.0], 0.5), 2, X(4), Y(4), S(VW - 8), S(VH - 8))
+    lib.draw.rectangle([0.6, 0.6, 1.0, 0.6], 2, X(4), Y(4), S(VW - 8), S(VH - 8))
     for i in range(0, VH, 50):                                    # dashed centre line
-        lib.draw.rectangle(mix(BG, [1, 1, 1], 0.25 + 0.1 * math.sin(t * 3 + i)), 0, X(VW / 2 - 3), Y(i + 10), S(6), S(28))
+        lib.draw.rectangle([1, 1, 1, 0.18 + 0.1 * math.sin(t * 3 + i)], 0, X(VW / 2 - 3), Y(i + 10), S(6), S(28))
+    # vignette: transparent in the middle, dark at the top and bottom edges
+    lib.draw.gradient([0, 0, 0, 0.55], [0, 0, 0, 0], X(0), Y(0), S(VW), S(160), math.pi / 2)
+    lib.draw.gradient([0, 0, 0, 0], [0, 0, 0, 0.55], X(0), Y(VH - 160), S(VW), S(160), math.pi / 2)
 
 
 def big_text(txt, x, y, size, col, ha="center", va="middle"):
-    """Chromatic aberration: red + cyan copies offset behind the real text."""
+    """Chromatic aberration: translucent red + cyan copies offset behind the real text."""
     d = S(3 + 5 * flash + shake * 0.15)
-    lib.draw.text([1, 0.1, 0.2], txt, X(x) - d, Y(y), S(size), ha, va)
-    lib.draw.text([0.1, 0.9, 1.0], txt, X(x) + d, Y(y), S(size), ha, va)
+    lib.draw.text([1, 0.1, 0.2, 0.75], txt, X(x) - d, Y(y), S(size), ha, va)
+    lib.draw.text([0.1, 0.9, 1.0, 0.75], txt, X(x) + d, Y(y), S(size), ha, va)
     lib.draw.text(col, txt, X(x), Y(y), S(size), ha, va)
 
 
 def draw_scene():
     draw_backdrop()
 
-    big_text(str(player.score), VW / 2 - 200, 110, 150, mix(player.col, [1, 1, 1], 0.5))
-    big_text(str(cpu.score), VW / 2 + 200, 110, 150, mix(cpu.col, [1, 1, 1], 0.5))
+    big_text(str(player.score), VW / 2 - 200, 110, 150, A(mix(player.col, [1, 1, 1], 0.5), 0.9))
+    big_text(str(cpu.score), VW / 2 + 200, 110, 150, A(mix(cpu.col, [1, 1, 1], 0.5), 0.9))
 
-    for r in rings:                                               # shockwaves
+    for r in rings:                                               # shockwaves, fading as they expand
         k = r[3] / 0.45
-        lib.draw.circle(mix(BG, r[4], k), max(1, round(4 * k)), X(r[0]), Y(r[1]), S(r[2]))
+        lib.draw.circle(A(r[4], k * 0.9), max(1, round(4 * k)), X(r[0]), Y(r[1]), S(r[2]))
+        lib.draw.circle(A(r[4], k * 0.12), 0, X(r[0]), Y(r[1]), S(r[2]))
 
     for p in (player, cpu):                                       # paddles, squash + stretch
         sq = p.squash
@@ -338,40 +352,43 @@ def draw_scene():
     if state in ("play", "serve"):
         speed = math.hypot(bvx, bvy)
         col = hsv((0.5 + speed / 3000) % 1, 0.7, 1.0)             # ball hue follows speed
-        for i, (tx, ty) in enumerate(trail):                      # comet trail
+        for i, (tx, ty) in enumerate(trail):                      # comet trail, tail fully transparent
             f = (i + 1) / len(trail)
-            lib.draw.circle(mix(BG, col, 0.2 + f * 0.6), 0, X(tx), Y(ty), S(BALL_R * (0.3 + 0.7 * f)))
+            lib.draw.circle(A(col, 0.5 * f * f), 0, X(tx), Y(ty), S(BALL_R * (0.3 + 0.9 * f)))
         pulse = 1 + (0.25 * math.sin(t * 30) if state == "serve" else 0)
         glow_circle(bx, by, BALL_R * pulse, col)
 
-    for s in sparks:                                              # sparks as streaks
+    for s in sparks:                                              # sparks as streaks, alpha follows life
         f = s[4] / s[5]
-        lib.draw.line(mix(BG, s[6], f), 2, X(s[0]), Y(s[1]), X(s[0] - s[2] * 0.03), Y(s[1] - s[3] * 0.03))
+        lib.draw.line(A(s[6], f), 2, X(s[0]), Y(s[1]), X(s[0] - s[2] * 0.03), Y(s[1] - s[3] * 0.03))
 
-    if flash > 0:                                                 # edge flash
+    if flash > 0:                                                 # whole-screen tint + edge glow
+        lib.draw.rectangle(A(flash_col, flash * 0.35), 0, 0, 0, width, height)
         e = 40 * flash / 0.5
-        c = mix(BG, flash_col, min(1, flash * 1.6))
-        lib.draw.rectangle(c, 0, 0, 0, width, e)
-        lib.draw.rectangle(c, 0, 0, height - e, width, e)
+        lib.draw.rectangle(A(flash_col, min(1, flash * 1.6)), 0, 0, 0, width, e)
+        lib.draw.rectangle(A(flash_col, min(1, flash * 1.6)), 0, 0, height - e, width, e)
 
+    pulse_a = 0.6 + 0.4 * math.sin(t * 4)
     if state == "title":
         big_text("NEON PONG", VW / 2, 330, 120, [1, 1, 1])
-        lib.draw.text(mix(BG, [1, 1, 1], 0.6 + 0.4 * math.sin(t * 4)), "press SPACE", X(VW / 2), Y(470), S(36), "center", "middle")
-        lib.draw.text("#8899bb", "W/S, arrows or mouse to move   first to 7   C: scanlines", X(VW / 2), Y(540), S(24), "center", "middle")
+        lib.draw.text([1, 1, 1, pulse_a], "press SPACE", X(VW / 2), Y(470), S(36), "center", "middle")
+        lib.draw.text([0.55, 0.6, 0.75, 0.9], "W/S, arrows or mouse to move   first to 7   C: scanlines", X(VW / 2), Y(540), S(24), "center", "middle")
     elif state == "serve":
         n = max(1, math.ceil(serve_t / 0.37))
-        lib.draw.text([1, 1, 1], str(n), X(VW / 2), Y(VH / 2 - 90), S(70 + (serve_t % 0.37) * 100), "center", "middle")
+        beat = (serve_t % 0.37) / 0.37                            # 1 -> 0 inside every count, number fades as it grows
+        lib.draw.text([1, 1, 1, 0.2 + 0.8 * beat], str(n), X(VW / 2), Y(VH / 2 - 90), S(70 + (1 - beat) * 40), "center", "middle")
     elif state == "over":
         who = "YOU WIN" if winner is player else "CPU WINS"
+        lib.draw.rectangle([0, 0, 0, 0.45], 0, 0, Y(250), width, S(310))   # dim band behind the result
         big_text(who, VW / 2, 330, 130, mix(winner.col, [1, 1, 1], 0.4))
-        lib.draw.text(mix(BG, [1, 1, 1], 0.6 + 0.4 * math.sin(t * 4)), "SPACE to play again", X(VW / 2), Y(470), S(34), "center", "middle")
+        lib.draw.text([1, 1, 1, pulse_a], "SPACE to play again", X(VW / 2), Y(470), S(34), "center", "middle")
 
     if rally > 2 and state == "play":                             # rally counter
-        lib.draw.text(mix(BG, [1, 0.9, 0.3], 0.8), f"RALLY {rally}", X(VW / 2), Y(VH - 40), S(30 + min(rally, 20)), "center", "middle")
+        lib.draw.text([1, 0.9, 0.3, 0.85], f"RALLY {rally}", X(VW / 2), Y(VH - 40), S(30 + min(rally, 20)), "center", "middle")
 
-    if scanlines:                                                 # CRT look
+    if scanlines:                                                 # CRT look: translucent now, so the picture survives
         for y in range(0, height, 4):
-            lib.draw.rectangle(0x000000, 0, 0, y, width, 1)
+            lib.draw.rectangle([0, 0, 0, 0.28], 0, 0, y, width, 1)
     # letterbox bars hide the shake offset outside the arena
     if ox > 1:
         lib.draw.rectangle(0x000000, 0, 0, 0, ox, height)

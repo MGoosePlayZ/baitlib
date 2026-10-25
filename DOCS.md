@@ -838,10 +838,16 @@ python lib.py demos/sort.py
 | File | Shows |
 |---|---|
 | `demos/sort.py` | Shell sort of 500 values (shuffled 1-500 to 500-1) with a tone per step. 500 filled rectangles per frame + sound stress test. Up/Down speed, Space reshuffle, T waveform, M mute |
-| `demos/pong.py` | Neon pong: glow, trails, sparks, shockwaves, screen shake, squash/stretch, synthwave backdrop, chromatic text, scanlines, procedural sound. W/S, arrows or mouse |
+| `demos/pong.py` | Neon pong: translucent glow, fading trails, sparks, shockwaves, screen shake, squash/stretch, gradient synthwave backdrop, chromatic text, alpha scanlines, procedural sound. W/S, arrows or mouse |
 | `demos/wireframe.py` | 2D wireframe renderer for `.obj` files (software 3D to `lib.draw.line`). Includes `cube`, `icosphere`, `torus`, `knot`; drop in your own. Drag rotate, scroll zoom, Left/Right model, M mode, P projection, V verts, F flip winding |
 | `demos/roguelike.py` | Endless roguelike: lazily generated rooms and hallways, enemies that heal you on death and scale over time, uses `lib.collision.query` for walls, melee, projectiles, contact damage and line of sight. WASD + mouse, R restarts |
 | `demos/synth.py` | Tone Lab: playable synth on `lib.sound.tone` with waveform buttons, attack/release/length sliders, piano keys (keyboard or mouse), oscilloscope and arpeggiator |
+| `demos/easing.py` | Every `ease` function (10 families x in/out/inout) as circles travelling left to right and back, with fading trails. Hover for the curve. Space, Up/Down, Left/Right, T |
+| `demos/rubble.py` | Pile of convex and concave polygon rocks you can drag (`world.pick` + `world.grab`). R new pile, Space shake, T triangles, K rk4 |
+| `demos/stress.py` | Physics stress test: balls rain into a box. FPS, ball/contact counts, step time and graphs. Toggles for spawning, rk4, gravity, substeps, rate, delete all |
+| `demos/gui_demo.py` | Fake game menu (modals, resizable windows, table, chart, file tree, pickers, loading screen) using many gui widgets |
+| `demos/gui_showcase.py` | Every gui widget in an accordion, each with a note on how it works |
+| `demos/save.py` | Orb Garden idle clicker built around save data: slots, autosave, versioned JSON + migration, `.bak` recovery from corrupt files, offline progress. Writes to `demos/saves/` |
 | `files/main.py` | Original small API tour using UV coordinates |
 
 Demo notes:
